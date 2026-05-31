@@ -16,7 +16,7 @@ Most AI agent platforms are either too expensive, too complex, or closed source.
 
 ## Live Demo
 
-🚀 [agent-fabric-83.lovable.app](https://agent-fabric-83.lovable.app)
+🚀 agent-fabric-ai.vercel.app
 
 ## Features
 
