@@ -2,7 +2,7 @@
 
 > Build, deploy and monitor AI agent pipelines visually. The operating system for autonomous workflows.
 
-![NEXUS Banner](https://agent-fabric-83.lovable.app/)
+agent-fabric-ai.vercel.app
 
 ## What is NEXUS?
 
