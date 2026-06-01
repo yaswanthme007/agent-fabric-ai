@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { Plus, Search, Play, X, Loader2, Send } from "lucide-react";
+import { Plus, Search, Play, X, Loader2, Send, Copy, Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AGENTS, type Agent, type AgentType } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
@@ -22,6 +22,29 @@ const COLORS: Record<string, { border: string; text: string; bg: string; gradien
 };
 
 const COLOR_KEYS: Agent["color"][] = ["primary", "secondary", "accent", "warning"];
+
+const QUICK_TASKS: Record<string, string[]> = {
+  NLP: [
+    "Summarize this text: [paste any article or paragraph here]",
+    "Extract all action items from: [paste meeting notes here]",
+    "Classify the sentiment of: [paste a customer review here]",
+  ],
+  Data: [
+    "Analyze this data and find patterns: [paste CSV rows or numbers here]",
+    "Extract structured information from: [paste unstructured text here]",
+    "Compare these values and give insights: [paste data here]",
+  ],
+  Automation: [
+    "Create a step-by-step automation plan to: [describe your workflow]",
+    "Break down this process into executable steps: [describe the process]",
+    "What tools and APIs would I need to automate: [describe the task]",
+  ],
+  Vision: [
+    "Describe what you would detect in an image of: [describe the scene]",
+    "What data would you extract from a receipt showing: [describe the receipt]",
+    "Analyze this UI screenshot description: [describe the interface]",
+  ],
+};
 
 function AgentsPage() {
   const [tag, setTag] = useState<typeof TAGS[number]>("All");
@@ -46,9 +69,7 @@ function AgentsPage() {
             color: (a.color as Agent["color"]) ?? COLOR_KEYS[i % COLOR_KEYS.length],
           })));
         }
-      } catch {
-        // silent fallback
-      }
+      } catch { /* silent fallback */ }
     })();
   }, []);
 
@@ -137,8 +158,10 @@ function RunModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
   const [task, setTask] = useState("");
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState("");
+  const [copied, setCopied] = useState(false);
   const typingRef = useRef<number | null>(null);
   const c = COLORS[agent.color] ?? COLORS.primary;
+  const quickTasks = QUICK_TASKS[agent.type] ?? QUICK_TASKS.NLP;
 
   useEffect(() => () => { if (typingRef.current) window.clearInterval(typingRef.current); }, []);
 
@@ -146,9 +169,9 @@ function RunModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
     if (!task.trim() || loading) return;
     setLoading(true);
     setOutput("");
+    setCopied(false);
     try {
       const response = await runAgent(agent.name, agent.type, task);
-      // typewriter
       let i = 0;
       if (typingRef.current) window.clearInterval(typingRef.current);
       typingRef.current = window.setInterval(() => {
@@ -175,6 +198,13 @@ function RunModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
     }
   };
 
+  const copyOutput = async () => {
+    await navigator.clipboard.writeText(output);
+    setCopied(true);
+    toast.success("Copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -186,6 +216,7 @@ function RunModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
         className="glass relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border"
       >
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-border p-5">
           <div className="flex items-center gap-3">
             <div className={`flex h-10 w-10 items-center justify-center rounded-xl border ${c.border} bg-surface font-display font-bold ${c.text}`}>
@@ -193,7 +224,7 @@ function RunModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
             </div>
             <div>
               <h3 className="font-display text-lg font-semibold">{agent.name}</h3>
-              <span className={`font-mono text-[10px] uppercase tracking-wider ${c.text}`}>{agent.type} agent</span>
+              <p className={`font-mono text-[10px] uppercase tracking-wider ${c.text}`}>{agent.type} agent · {agent.description}</p>
             </div>
           </div>
           <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-surface hover:text-foreground">
@@ -201,11 +232,28 @@ function RunModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
           </button>
         </div>
 
+        {/* Quick Tasks */}
+        <div className="border-b border-border px-5 py-3">
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Quick Tasks</p>
+          <div className="flex flex-wrap gap-2">
+            {quickTasks.map((qt, i) => (
+              <button
+                key={i}
+                onClick={() => setTask(qt)}
+                className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-muted-foreground transition hover:border-primary hover:text-primary"
+              >
+                {qt.length > 45 ? qt.slice(0, 45) + "…" : qt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Task input */}
         <div className="space-y-3 p-5">
           <textarea
             value={task}
             onChange={(e) => setTask(e.target.value)}
-            placeholder="Describe what you want this agent to do..."
+            placeholder="Describe what you want this agent to do, or click a Quick Task above..."
             rows={3}
             className="w-full resize-none rounded-lg border border-border bg-input/40 px-3 py-2 text-sm outline-none focus:border-primary focus:shadow-[var(--shadow-glow)]"
           />
@@ -219,9 +267,19 @@ function RunModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-auto border-t border-border bg-black/60 p-4 font-mono text-xs text-[color:var(--color-primary)]">
+        {/* Output terminal */}
+        <div className="relative flex-1 overflow-auto border-t border-border bg-black/60 p-4 font-mono text-xs text-[color:var(--color-primary)]">
           {output ? (
-            <pre className="whitespace-pre-wrap break-words">{output}<span className="animate-pulse">▌</span></pre>
+            <>
+              <pre className="whitespace-pre-wrap break-words">{output}<span className="animate-pulse">▌</span></pre>
+              <button
+                onClick={copyOutput}
+                className="absolute right-3 top-3 flex items-center gap-1.5 rounded-md border border-border bg-surface/80 px-2 py-1 text-[10px] text-muted-foreground transition hover:border-primary hover:text-primary"
+              >
+                {copied ? <Check className="h-3 w-3 text-accent" /> : <Copy className="h-3 w-3" />}
+                {copied ? "Copied!" : "Copy"}
+              </button>
+            </>
           ) : (
             <div className="text-muted-foreground">$ awaiting task...</div>
           )}

@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
-import { LOGS, PIPELINES, type LogEntry } from "@/lib/mock-data";
+import type { LogEntry } from "@/lib/mock-data";
 import { LogLevelBadge } from "./app.index";
-import { Filter, Terminal } from "lucide-react";
+import { Filter, Terminal, Activity } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/app/logs")({
@@ -11,29 +11,45 @@ export const Route = createFileRoute("/app/logs")({
   component: LogsPage,
 });
 
-const FILTERS = ["ALL", "INFO", "WARN", "ERROR"] as const;
+const FILTERS = ["ALL", "INFO", "WARN", "ERROR", "DEBUG"] as const;
 
 function LogsPage() {
-  const [selectedPipeline, setSelectedPipeline] = useState<string>(PIPELINES[0].name);
-  const [stream, setStream] = useState<LogEntry[]>(LOGS);
+  const [stream, setStream] = useState<LogEntry[]>([]);
   const [filter, setFilter] = useState<typeof FILTERS[number]>("ALL");
+  const [loading, setLoading] = useState(true);
+  const [totalToday, setTotalToday] = useState(0);
+  const [errorCount, setErrorCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const { data, error } = await supabase.from("logs").select("*").order("created_at", { ascending: false }).limit(100);
+        const { data, error } = await supabase
+          .from("logs")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(100);
         if (error) throw error;
-        if (!cancelled && data && data.length) {
-          setStream(data.map((l: any) => ({
+        if (!cancelled) {
+          const mapped: LogEntry[] = (data ?? []).map((l: any) => ({
             id: String(l.id),
             time: l.created_at ? new Date(l.created_at).toTimeString().slice(0, 8) : "--:--:--",
             level: (l.level ?? "INFO") as LogEntry["level"],
             pipeline: l.agent_name ?? l.pipeline ?? "system",
             message: l.message ?? "",
-          })));
+          }));
+          setStream(mapped);
+          // stats
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          const todayLogs = mapped.filter(l => {
+            const d = data?.find((r: any) => String(r.id) === l.id);
+            return d ? new Date(d.created_at) >= today : true;
+          });
+          setTotalToday(todayLogs.length);
+          setErrorCount(mapped.filter(l => l.level === "ERROR").length);
         }
       } catch {}
+      finally { if (!cancelled) setLoading(false); }
     };
     load();
     const id = setInterval(load, 5000);
@@ -44,33 +60,21 @@ function LogsPage() {
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
+      {/* Stats header */}
       <div className="grid grid-cols-3 gap-4 border-b border-border p-6">
-        <Stat label="Total Logs Today" value="48,221" />
-        <Stat label="Error Rate" value="0.42%" accent="danger" />
-        <Stat label="Avg Response Time" value="412ms" accent="accent" />
+        <StatCard label="Logs Today" value={loading ? "—" : String(totalToday)} />
+        <StatCard label="Errors" value={loading ? "—" : String(errorCount)} accent="danger" />
+        <StatCard label="Auto-refresh" value="5s" accent="accent" />
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside className="w-64 shrink-0 overflow-auto border-r border-border bg-surface/30 p-3">
-          <h3 className="mb-2 px-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Pipelines</h3>
-          {PIPELINES.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setSelectedPipeline(p.name)}
-              className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${selectedPipeline === p.name ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-surface hover:text-foreground"}`}
-            >
-              <span className="truncate">{p.name}</span>
-              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${p.status === "Running" ? "bg-accent animate-pulse" : p.status === "Error" ? "bg-danger" : "bg-muted-foreground"}`} />
-            </button>
-          ))}
-        </aside>
-
+        {/* Terminal area */}
         <div className="flex flex-1 flex-col">
           <div className="flex items-center gap-3 border-b border-border bg-surface/30 px-5 py-3">
             <Terminal className="h-4 w-4 text-primary" />
-            <span className="font-mono text-xs text-muted-foreground">{selectedPipeline} · live tail</span>
+            <span className="font-mono text-xs text-muted-foreground">nexus · live log stream</span>
             <span className="ml-2 flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" /> streaming
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" /> live
             </span>
             <div className="ml-auto flex items-center gap-1">
               <Filter className="mr-1 h-3 w-3 text-muted-foreground" />
@@ -85,25 +89,41 @@ function LogsPage() {
               ))}
             </div>
           </div>
+
           <div className="flex-1 overflow-auto bg-background/40 p-3 font-mono text-xs">
-            <AnimatePresence initial={false}>
-              {visible.map((l) => (
-                <motion.div
-                  key={l.id}
-                  layout
-                  initial={{ opacity: 0, y: -8, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: "auto" }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex gap-3 rounded px-3 py-1.5 hover:bg-surface/50"
-                >
-                  <span className="text-muted-foreground">{l.time}</span>
-                  <LogLevelBadge level={l.level} />
-                  <span className="text-muted-foreground/70">[{l.pipeline}]</span>
-                  <span className="text-foreground/90">{l.message}</span>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            {loading ? (
+              <div className="flex items-center gap-2 text-muted-foreground p-4">
+                <Activity className="h-4 w-4 animate-pulse" /> Loading logs...
+              </div>
+            ) : visible.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center gap-3 text-muted-foreground">
+                <Terminal className="h-10 w-10 opacity-30" />
+                <p className="text-sm">No logs yet.</p>
+                <p className="text-xs opacity-70">Run an agent from the{" "}
+                  <Link to="/app/agents" className="text-primary hover:underline">Agents Library</Link>{" "}
+                  to see real execution logs here.
+                </p>
+              </div>
+            ) : (
+              <AnimatePresence initial={false}>
+                {visible.map((l) => (
+                  <motion.div
+                    key={l.id}
+                    layout
+                    initial={{ opacity: 0, y: -8, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: "auto" }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex gap-3 rounded px-3 py-1.5 hover:bg-surface/50"
+                  >
+                    <span className="text-muted-foreground shrink-0">{l.time}</span>
+                    <LogLevelBadge level={l.level} />
+                    <span className="text-muted-foreground/70 shrink-0">[{l.pipeline}]</span>
+                    <span className="text-foreground/90 break-all">{l.message}</span>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            )}
           </div>
         </div>
       </div>
@@ -111,7 +131,7 @@ function LogsPage() {
   );
 }
 
-function Stat({ label, value, accent = "primary" }: { label: string; value: string; accent?: "primary" | "danger" | "accent" }) {
+function StatCard({ label, value, accent = "primary" }: { label: string; value: string; accent?: "primary" | "danger" | "accent" }) {
   const color = { primary: "text-primary", danger: "text-danger", accent: "text-accent" }[accent];
   return (
     <div className="glass rounded-xl p-4">

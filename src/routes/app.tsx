@@ -1,7 +1,9 @@
-import { Link, Outlet, useRouterState, createFileRoute } from "@tanstack/react-router";
+import { Link, Outlet, useRouterState, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutGrid, Workflow, Bot, Activity, Settings, Search, Bell, Hexagon, ChevronLeft, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { LayoutGrid, Workflow, Bot, Activity, Settings, Search, Bell, Hexagon, ChevronLeft, ChevronRight, LogOut, LogIn } from "lucide-react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/app")({
   head: () => ({ meta: [{ title: "NEXUS · Workspace" }] }),
@@ -18,8 +20,24 @@ const NAV: { to: "/app" | "/app/builder" | "/app/agents" | "/app/logs" | "/app/s
 
 function AppShell() {
   const [expanded, setExpanded] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const path = useRouterState({ select: (r) => r.location.pathname });
+  const navigate = useNavigate();
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/login" });
+  };
+
+  const avatarText = user?.email ? user.email.slice(0, 2).toUpperCase() : "?";
   const crumbs = NAV.find((n) => (n.exact ? path === n.to : path.startsWith(n.to)))?.label ?? "Dashboard";
 
   return (
@@ -41,6 +59,7 @@ function AppShell() {
             </AnimatePresence>
           </Link>
         </div>
+
         <nav className="flex-1 px-2 py-4">
           {NAV.map((item) => {
             const active = item.exact ? path === item.to : path.startsWith(item.to);
@@ -68,6 +87,32 @@ function AppShell() {
             );
           })}
         </nav>
+
+        {/* Auth section */}
+        <div className="border-t border-sidebar-border p-2">
+          {user ? (
+            <div className={`flex items-center gap-2 rounded-lg px-2 py-2 ${expanded ? "justify-between" : "justify-center"}`}>
+              <AnimatePresence>
+                {expanded && (
+                  <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="truncate text-xs text-muted-foreground max-w-[140px]">
+                    {user.email}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+              <button onClick={handleLogout} title="Sign out" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition hover:bg-danger/10 hover:text-danger">
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <Link to="/login" className={`flex h-9 items-center justify-center gap-2 rounded-lg border border-border text-xs text-muted-foreground transition hover:border-primary hover:text-primary ${expanded ? "px-3" : ""}`}>
+              <LogIn className="h-4 w-4 shrink-0" />
+              <AnimatePresence>
+                {expanded && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>Sign In</motion.span>}
+              </AnimatePresence>
+            </Link>
+          )}
+        </div>
+
         <button
           onClick={() => setExpanded((v) => !v)}
           className="m-2 flex h-9 items-center justify-center rounded-lg border border-sidebar-border text-muted-foreground transition hover:text-foreground"
@@ -94,7 +139,7 @@ function AppShell() {
             <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger animate-pulse" />
           </button>
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary font-display text-sm font-semibold text-primary-foreground">
-            SK
+            {avatarText}
           </div>
         </header>
 

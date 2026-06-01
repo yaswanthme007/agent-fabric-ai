@@ -1,22 +1,161 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Settings as SettingsIcon } from "lucide-react";
+import { Eye, EyeOff, Key, Trash2, CheckCircle, User, ExternalLink, LogOut } from "lucide-react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
+import type { User as SupaUser } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/app/settings")({
   head: () => ({ meta: [{ title: "NEXUS · Settings" }] }),
   component: SettingsPage,
 });
 
-function SettingsPage() {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="p-6 lg:p-8">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass mx-auto max-w-2xl rounded-2xl p-8 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary">
-          <SettingsIcon className="h-6 w-6" />
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-2xl p-6 space-y-4">
+      <h2 className="font-display text-lg font-semibold border-b border-border pb-3">{title}</h2>
+      {children}
+    </motion.div>
+  );
+}
+
+function SettingsPage() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState<SupaUser | null>(null);
+  const [key, setKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [keySaved, setKeySaved] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+    const stored = localStorage.getItem("nexus_groq_key");
+    if (stored) { setKey(stored); setKeySaved(true); }
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/login" });
+  };
+
+  const saveKey = () => {
+    if (!key.trim().startsWith("gsk_")) {
+      toast.error("Invalid key — Groq keys start with gsk_");
+      return;
+    }
+    localStorage.setItem("nexus_groq_key", key.trim());
+    setKeySaved(true);
+    toast.success("API key saved to your browser");
+  };
+
+  const removeKey = () => {
+    localStorage.removeItem("nexus_groq_key");
+    setKey("");
+    setKeySaved(false);
+    toast.info("API key removed");
+  };
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6 p-6 lg:p-8">
+      <div>
+        <h1 className="font-display text-2xl font-semibold">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Manage your account, API keys, and workspace preferences</p>
+      </div>
+
+      {/* Account */}
+      <Section title="Account">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary font-display font-bold text-primary-foreground">
+            <User className="h-5 w-5" />
+          </div>
+          <div>
+            {user ? (
+              <>
+                <p className="text-sm font-medium">{user.email}</p>
+                <p className="text-xs text-muted-foreground">Signed in · data synced to cloud</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium">Guest User</p>
+                <p className="text-xs text-muted-foreground">Not signed in · data stored locally only</p>
+              </>
+            )}
+          </div>
+          {user && (
+            <button
+              onClick={handleLogout}
+              className="ml-auto flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition hover:border-danger hover:text-danger"
+            >
+              <LogOut className="h-3.5 w-3.5" /> Sign Out
+            </button>
+          )}
         </div>
-        <h2 className="mt-4 font-display text-2xl font-semibold">Settings</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Configure your workspace, integrations and API keys here.</p>
-      </motion.div>
+        {!user && (
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+            <p className="mb-2">Sign in to sync your pipelines and agent runs across devices.</p>
+            <Link to="/login" className="text-primary hover:underline">Sign in or create a free account →</Link>
+          </div>
+        )}
+      </Section>
+
+      {/* Groq API Key */}
+      <Section title="Groq API Key">
+        <div className="flex items-center gap-2">
+          <Key className="h-4 w-4 text-primary" />
+          <p className="text-xs text-muted-foreground">Stored only in your browser. Never sent to our servers.</p>
+          {keySaved && <CheckCircle className="ml-auto h-4 w-4 text-accent" />}
+        </div>
+
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input
+              type={showKey ? "text" : "password"}
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="gsk_..."
+              className="w-full rounded-lg border border-border bg-input/40 px-3 py-2 pr-10 font-mono text-sm outline-none transition focus:border-primary focus:shadow-[var(--shadow-glow)]"
+            />
+            <button onClick={() => setShowKey((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <button onClick={saveKey} className="rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90">Save</button>
+          {keySaved && (
+            <button onClick={removeKey} className="rounded-lg border border-border px-3 text-muted-foreground transition hover:border-danger hover:text-danger">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-border bg-surface/40 p-3 text-xs text-muted-foreground space-y-1">
+          <p>1. Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" className="text-primary hover:underline">console.groq.com</a> → Sign up free (no card needed)</p>
+          <p>2. Click <strong className="text-foreground">API Keys</strong> → <strong className="text-foreground">Create API Key</strong></p>
+          <p>3. Paste it above and hit <strong className="text-foreground">Save</strong></p>
+        </div>
+
+        {keySaved ? (
+          <p className="flex items-center gap-2 text-xs text-accent"><CheckCircle className="h-3.5 w-3.5" /> Personal API key active — running on your own free Groq account</p>
+        ) : (
+          <p className="text-xs text-amber-400">⚠ No personal key set — using shared demo key (rate limits may apply)</p>
+        )}
+      </Section>
+
+      {/* About */}
+      <Section title="About NEXUS">
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <div className="flex justify-between"><span>Version</span><span className="font-mono text-foreground">2.0.0</span></div>
+          <div className="flex justify-between"><span>License</span><span className="font-mono text-foreground">MIT</span></div>
+          <div className="flex justify-between items-center">
+            <span>GitHub</span>
+            <a href="https://github.com/yaswanthme007/agent-fabric-ai" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-primary hover:underline font-mono text-xs">
+              agent-fabric-ai <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        </div>
+        <p className="rounded-lg border border-border bg-surface/40 p-3 text-xs text-muted-foreground">
+          Built entirely with free tools — Groq (AI), Supabase (database + auth), Vercel (hosting), React + TanStack Router (frontend). Proof that great software doesn't have to cost anything.
+        </p>
+      </Section>
     </div>
   );
 }

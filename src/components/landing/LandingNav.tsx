@@ -16,11 +16,21 @@ export function LandingNav() {
           <a href="#features" className="hover:text-foreground">Features</a>
           <a href="#agents" className="hover:text-foreground">Agents</a>
           <a href="#pipeline" className="hover:text-foreground">Pipelines</a>
-          <a href="#" className="hover:text-foreground">Docs</a>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/app" className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground transition hover:opacity-90">
-            Launch
+          <Link
+            to="/login"
+            search={{ mode: "signin" }}
+            className="rounded-md border border-border px-4 py-1.5 text-sm font-medium text-muted-foreground transition hover:border-primary hover:text-foreground"
+          >
+            Sign In
+          </Link>
+          <Link
+            to="/login"
+            search={{ mode: "signup" }}
+            className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground transition hover:opacity-90"
+          >
+            Get Started
           </Link>
         </div>
       </div>
@@ -37,9 +47,9 @@ export function LandingFooter() {
           <span className="font-mono text-xs">NEXUS · runtime v2.0 · © 2026</span>
         </div>
         <div className="flex gap-6 text-xs text-muted-foreground">
+          <a href="https://github.com/yaswanthme007/agent-fabric-ai" target="_blank" rel="noreferrer" className="hover:text-foreground">GitHub</a>
           <a href="#" className="hover:text-foreground">Privacy</a>
           <a href="#" className="hover:text-foreground">Terms</a>
-          <a href="#" className="hover:text-foreground">Status</a>
         </div>
       </div>
     </footer>
