@@ -1,7 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { Hexagon } from "lucide-react";
+import { useModals } from "@/lib/ModalContext";
 
 export function LandingNav() {
+  const { openAuthModal } = useModals();
+
   return (
     <nav className="fixed inset-x-0 top-0 z-50 border-b border-border/40 bg-background/60 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
@@ -18,20 +21,18 @@ export function LandingNav() {
           <a href="#pipeline" className="hover:text-foreground">Pipelines</a>
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            to="/login"
-            search={{ mode: "signin" }}
+          <button
+            onClick={() => openAuthModal("signin")}
             className="rounded-md border border-border px-4 py-1.5 text-sm font-medium text-muted-foreground transition hover:border-primary hover:text-foreground"
           >
             Sign In
-          </Link>
-          <Link
-            to="/login"
-            search={{ mode: "signup" }}
+          </button>
+          <button
+            onClick={() => openAuthModal("signup")}
             className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground transition hover:opacity-90"
           >
             Get Started
-          </Link>
+          </button>
         </div>
       </div>
     </nav>

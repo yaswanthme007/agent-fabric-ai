@@ -4,6 +4,7 @@ import { LayoutGrid, Workflow, Bot, Activity, Settings, Search, Bell, Hexagon, C
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
+import { useModals } from "@/lib/ModalContext";
 
 export const Route = createFileRoute("/app")({
   head: () => ({ meta: [{ title: "NEXUS · Workspace" }] }),
@@ -23,6 +24,7 @@ function AppShell() {
   const [user, setUser] = useState<User | null>(null);
   const path = useRouterState({ select: (r) => r.location.pathname });
   const navigate = useNavigate();
+  const { openAuthModal } = useModals();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
@@ -104,12 +106,12 @@ function AppShell() {
               </button>
             </div>
           ) : (
-            <Link to="/login" className={`flex h-9 items-center justify-center gap-2 rounded-lg border border-border text-xs text-muted-foreground transition hover:border-primary hover:text-primary ${expanded ? "px-3" : ""}`}>
+            <button onClick={() => openAuthModal("signin")} className={`flex w-full h-9 items-center justify-center gap-2 rounded-lg border border-border text-xs text-muted-foreground transition hover:border-primary hover:text-primary ${expanded ? "px-3" : ""}`}>
               <LogIn className="h-4 w-4 shrink-0" />
               <AnimatePresence>
                 {expanded && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>Sign In</motion.span>}
               </AnimatePresence>
-            </Link>
+            </button>
           )}
         </div>
 
